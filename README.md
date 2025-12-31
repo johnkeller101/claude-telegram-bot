@@ -9,17 +9,13 @@ Send text, voice, photos, and documents. Claude streams responses in real-time, 
 
 ![Demo](assets/demo.gif)
 
-## Why This Exists
+## Claude Code as a Personal Assistant
 
-Claude Code is powerful, but you need a terminal. This bot lets you message Claude from your phone while walking, driving, or away from your desk.
+This bot shines as a personal assistant you can access from anywhere. Set up a folder with a CLAUDE.md that teaches Claude about you—your preferences, where your notes live, your workflows. Then point this bot at that folder.
 
-**The magic happens when you point it at a folder with:**
+Add [MCPs](https://code.claude.com/docs/en/mcp), [commands](https://code.claude.com/docs/en/slash-commands), and [skills](https://code.claude.com/docs/en/skills) to make it more powerful. The fun part: when you need a new capability, just ask Claude to build it, then use it via Telegram.
 
-- A **CLAUDE.md** with your personal context (preferences, projects, life goals, how you like things done)
-- **MCP servers** that connect Claude to your tools (task manager, notes, calendar, etc.)
-- **Custom skills** for workflows you run often
-
-With the right setup, you're not just chatting with Claude - you're delegating to an assistant that knows your context and can take real action.
+→ **[📄 See the Personal Assistant Guide](docs/personal-assistant-guide.md)** for detailed setup and an example CLAUDE.md template.
 
 ## Features
 
@@ -35,7 +31,7 @@ With the right setup, you're not just chatting with Claude - you're delegating t
 ## Quick Start
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/linuz90/claude-telegram-bot?tab=readme-ov-file
 cd claude-telegram-bot-ts
 
 cp .env.example .env
@@ -107,11 +103,13 @@ OPENAI_API_KEY=sk-...                      # For voice transcription
 **Finding your Telegram user ID:** Message [@userinfobot](https://t.me/userinfobot) on Telegram.
 
 **File access paths:** By default, Claude can access:
+
 - `CLAUDE_WORKING_DIR` (or home directory if not set)
 - `~/Documents`, `~/Downloads`, `~/Desktop`
 - `~/.claude` (for Claude Code plans and settings)
 
 To customize, set `ALLOWED_PATHS` in `.env` (comma-separated). Note: this **overrides** all defaults, so include `~/.claude` if you want plan mode to work:
+
 ```bash
 ALLOWED_PATHS=/your/project,/other/path,~/.claude
 ```
