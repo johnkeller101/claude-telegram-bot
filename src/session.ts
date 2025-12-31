@@ -75,25 +75,47 @@ class ClaudeSession {
   private abortController: AbortController | null = null;
   private isQueryRunning = false;
   private stopRequested = false;
+  private _isProcessing = false;
 
   get isActive(): boolean {
     return this.sessionId !== null;
   }
 
   get isRunning(): boolean {
-    return this.isQueryRunning;
+    return this.isQueryRunning || this._isProcessing;
   }
 
   /**
-   * Stop the currently running query.
+   * Mark processing as started (before intent classification).
+   * Returns a cleanup function to call when done.
    */
-  async stop(): Promise<boolean> {
+  startProcessing(): () => void {
+    this._isProcessing = true;
+    return () => {
+      this._isProcessing = false;
+    };
+  }
+
+  /**
+   * Stop the currently running query or mark for cancellation.
+   * Returns: "stopped" if query was aborted, "pending" if processing will be cancelled, false if nothing running
+   */
+  async stop(): Promise<"stopped" | "pending" | false> {
+    // If a query is actively running, abort it
     if (this.isQueryRunning && this.abortController) {
       this.stopRequested = true;
       this.abortController.abort();
       console.log("Stop requested - aborting current query");
-      return true;
+      return "stopped";
     }
+
+    // If processing (e.g., intent classification) but query not started yet
+    if (this._isProcessing) {
+      this.stopRequested = true;
+      console.log("Stop requested - will cancel before query starts");
+      return "pending";
+    }
+
     return false;
   }
 
@@ -139,6 +161,13 @@ class ClaudeSession {
     } else {
       console.log(`STARTING new Claude session (thinking=${thinkingLabel})`);
       this.sessionId = null;
+    }
+
+    // Check if stop was requested during processing phase
+    if (this.stopRequested) {
+      console.log("Query cancelled before starting (stop was requested during processing)");
+      this.stopRequested = false;
+      throw new Error("Query cancelled");
     }
 
     // Create abort controller for cancellation

@@ -107,6 +107,9 @@ async function processDocuments(
   username: string,
   chatId: number
 ): Promise<void> {
+  // Mark processing started
+  const stopProcessing = session.startProcessing();
+
   // Build prompt
   let prompt: string;
   if (documents.length === 1) {
@@ -127,6 +130,7 @@ async function processDocuments(
   if (caption) {
     const intent = await classifyIntent(caption);
     if (!intent.safe && intent.confidence > INTENT_BLOCK_THRESHOLD) {
+      stopProcessing();
       console.warn(`Blocked document from ${username}: ${intent.reason}`);
       await auditLogBlocked(userId, username, caption, intent.reason, intent.confidence);
       await ctx.reply("I can't help with that request.");
@@ -155,6 +159,7 @@ async function processDocuments(
   } catch (error) {
     await handleProcessingError(ctx, error, state.toolMessages);
   } finally {
+    stopProcessing();
     typing.stop();
   }
 }

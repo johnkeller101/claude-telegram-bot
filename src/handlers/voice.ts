@@ -49,13 +49,16 @@ export async function handleVoice(ctx: Context): Promise<void> {
     return;
   }
 
-  // 4. Start typing indicator for transcription
+  // 4. Mark processing started (allows /stop to work during transcription/classification)
+  const stopProcessing = session.startProcessing();
+
+  // 5. Start typing indicator for transcription
   const typing = startTypingIndicator(ctx);
 
   let voicePath: string | null = null;
 
   try {
-    // 5. Download voice file
+    // 6. Download voice file
     const file = await ctx.getFile();
     const timestamp = Date.now();
     voicePath = `${TEMP_DIR}/voice_${timestamp}.ogg`;
@@ -67,32 +70,34 @@ export async function handleVoice(ctx: Context): Promise<void> {
     const buffer = await downloadRes.arrayBuffer();
     await Bun.write(voicePath, buffer);
 
-    // 6. Transcribe
+    // 7. Transcribe
     const statusMsg = await ctx.reply("🎤 Transcribing...");
 
     const transcript = await transcribeVoice(voicePath);
     if (!transcript) {
       await ctx.api.editMessageText(chatId, statusMsg.message_id, "❌ Transcription failed.");
+      stopProcessing();
       return;
     }
 
-    // 7. Show transcript
+    // 8. Show transcript
     await ctx.api.editMessageText(chatId, statusMsg.message_id, `🎤 "${transcript}"`);
 
-    // 8. Intent classification
+    // 9. Intent classification
     const intent = await classifyIntent(transcript);
     if (!intent.safe && intent.confidence > INTENT_BLOCK_THRESHOLD) {
       console.warn(`Blocked voice from ${username}: ${intent.reason}`);
       await auditLogBlocked(userId, username, transcript, intent.reason, intent.confidence);
       await ctx.reply("I can't help with that request.");
+      stopProcessing();
       return;
     }
 
-    // 9. Create streaming state and callback
+    // 10. Create streaming state and callback
     const state = new StreamingState();
     const statusCallback = createStatusCallback(ctx, state);
 
-    // 10. Send to Claude
+    // 11. Send to Claude
     const claudeResponse = await session.sendMessageStreaming(
       transcript,
       username,
@@ -102,7 +107,7 @@ export async function handleVoice(ctx: Context): Promise<void> {
       ctx
     );
 
-    // 11. Audit log
+    // 12. Audit log
     await auditLog(userId, username, "VOICE", transcript, claudeResponse);
   } catch (error) {
     console.error("Error processing voice:", error);
@@ -113,6 +118,7 @@ export async function handleVoice(ctx: Context): Promise<void> {
       await ctx.reply(`❌ Error: ${String(error).slice(0, 200)}`);
     }
   } finally {
+    stopProcessing();
     typing.stop();
 
     // Clean up voice file

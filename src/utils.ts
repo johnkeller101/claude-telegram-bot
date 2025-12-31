@@ -215,7 +215,7 @@ export function startTypingIndicator(ctx: Context): TypingController {
 // ============== Message Interrupt ==============
 
 // Import session lazily to avoid circular dependency
-let sessionModule: { session: { isRunning: boolean; stop: () => Promise<boolean> } } | null = null;
+let sessionModule: { session: { isRunning: boolean; stop: () => Promise<"stopped" | "pending" | false> } } | null = null;
 
 export async function checkInterrupt(text: string): Promise<string> {
   if (!text || !text.startsWith("!")) {

@@ -55,8 +55,10 @@ export async function handleNew(ctx: Context): Promise<void> {
 
   // Stop any running query
   if (session.isRunning) {
-    await session.stop();
-    await Bun.sleep(100);
+    const result = await session.stop();
+    if (result) {
+      await Bun.sleep(100);
+    }
   }
 
   // Clear session
@@ -77,9 +79,11 @@ export async function handleStop(ctx: Context): Promise<void> {
   }
 
   if (session.isRunning) {
-    const stopped = await session.stop();
-    if (stopped) {
+    const result = await session.stop();
+    if (result === "stopped") {
       await ctx.reply("🛑 Stopping current query...");
+    } else if (result === "pending") {
+      await ctx.reply("🛑 Will cancel before query starts...");
     } else {
       await ctx.reply("No query to stop.");
     }

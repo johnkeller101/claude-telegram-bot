@@ -42,24 +42,28 @@ export async function handleText(ctx: Context): Promise<void> {
     return;
   }
 
-  // 4. Intent classification (security filter)
+  // 4. Mark processing started (allows /stop to work during intent classification)
+  const stopProcessing = session.startProcessing();
+
+  // 5. Intent classification (security filter)
   const intent = await classifyIntent(message);
   if (!intent.safe && intent.confidence > INTENT_BLOCK_THRESHOLD) {
+    stopProcessing();
     console.warn(`Blocked message from ${username}: ${intent.reason}`);
     await auditLogBlocked(userId, username, message, intent.reason, intent.confidence);
     await ctx.reply("I can't help with that request.");
     return;
   }
 
-  // 5. Start typing indicator
+  // 6. Start typing indicator
   const typing = startTypingIndicator(ctx);
 
-  // 6. Create streaming state and callback
+  // 7. Create streaming state and callback
   const state = new StreamingState();
   const statusCallback = createStatusCallback(ctx, state);
 
   try {
-    // 7. Send to Claude with streaming
+    // 8. Send to Claude with streaming
     const response = await session.sendMessageStreaming(
       message,
       username,
@@ -69,7 +73,7 @@ export async function handleText(ctx: Context): Promise<void> {
       ctx
     );
 
-    // 8. Audit log
+    // 9. Audit log
     await auditLog(userId, username, "TEXT", message, response);
   } catch (error) {
     console.error("Error processing message:", error);
@@ -90,6 +94,7 @@ export async function handleText(ctx: Context): Promise<void> {
       await ctx.reply(`❌ Error: ${String(error).slice(0, 200)}`);
     }
   } finally {
+    stopProcessing();
     typing.stop();
   }
 }
