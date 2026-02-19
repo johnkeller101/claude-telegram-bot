@@ -509,16 +509,17 @@ class ClaudeSession {
       await statusCallback("segment_end", currentSegmentText, currentSegmentId);
     }
 
-    // If timed out, append a notice and send whatever we have
+    // If timed out, send timeout notice as a new text message then finalize
     if (timedOut) {
       const partial = responseParts.join("");
       const notice =
-        "\n\n⏱ Response timed out (a tool call may have stalled). Try rephrasing or asking me to skip web lookups.";
-      if (partial) {
-        await statusCallback("segment_end", notice, currentSegmentId + 1);
-      }
+        "⏱ Response timed out (a tool call may have stalled). Try rephrasing or asking me to skip web lookups.";
+      // Create a new segment via "text" so Telegram message is created, then finalize it
+      const noticeSegId = currentSegmentId + 1;
+      await statusCallback("text", notice, noticeSegId);
+      await statusCallback("segment_end", notice, noticeSegId);
       await statusCallback("done", "");
-      return partial + notice || notice;
+      return partial ? partial + "\n\n" + notice : notice;
     }
 
     await statusCallback("done", "");
