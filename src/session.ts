@@ -227,6 +227,11 @@ class ClaudeSession {
       options.pathToClaudeCodeExecutable = process.env.CLAUDE_CODE_PATH;
     }
 
+    // Capture stderr from the CLI subprocess for debugging
+    options.stderr = (data: string) => {
+      console.log(`CLI STDERR: ${data.trimEnd()}`);
+    };
+
     if (this.sessionId && !isNewSession) {
       console.log(
         `RESUMING session ${this.sessionId.slice(
