@@ -413,6 +413,33 @@ export function formatToolStatus(
 }
 
 /**
+ * Convert a tool status string from active to failed ("Fetching" -> "Failed to fetch").
+ */
+export function formatToolErrorStatus(toolStatus: string): string {
+  const replacements: [RegExp, string][] = [
+    [/🌐 Fetching /, "❌ Failed to fetch "],
+    [/🔍 Searching:? /, "❌ Search failed "],
+    [/🔎 Searching /, "❌ Search failed "],
+    [/📖 Reading /, "❌ Failed to read "],
+    [/📝 Writing /, "❌ Failed to write "],
+    [/✏️ Editing /, "❌ Failed to edit "],
+    [/▶️ /, "❌ Command failed "],
+    [/🎯 Agent: /, "❌ Agent failed: "],
+    [/🔧 /, "❌ "],
+    [/👀 Viewing/, "❌ View failed"],
+    [/🔍 Finding /, "❌ Find failed "],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(toolStatus)) {
+      return toolStatus.replace(pattern, replacement);
+    }
+  }
+
+  return "❌ " + toolStatus;
+}
+
+/**
  * Convert a tool status string from active ("Fetching") to completed ("Fetched").
  */
 export function formatToolDoneStatus(toolStatus: string): string {

@@ -25,7 +25,7 @@ import {
   THINKING_KEYWORDS,
   WORKING_DIR,
 } from "./config";
-import { formatToolStatus, formatToolDoneStatus } from "./formatting";
+import { escapeHtml, formatToolStatus, formatToolDoneStatus, formatToolErrorStatus } from "./formatting";
 import { checkPendingAskUserRequests } from "./handlers/streaming";
 import { checkCommandSafety, isPathAllowed } from "./security";
 import type {
@@ -469,12 +469,30 @@ class ClaudeSession {
           const content = (event as { message?: { content?: unknown[] } }).message?.content;
           if (Array.isArray(content)) {
             for (const block of content) {
-              const b = block as { type?: string; tool_use_id?: string };
+              const b = block as { type?: string; tool_use_id?: string; is_error?: boolean; content?: unknown };
               if (b.type === "tool_result" && b.tool_use_id) {
                 const toolDisplay = pendingTools.get(b.tool_use_id);
                 if (toolDisplay) {
                   pendingTools.delete(b.tool_use_id);
-                  const doneDisplay = formatToolDoneStatus(toolDisplay);
+                  let doneDisplay: string;
+                  if (b.is_error) {
+                    // Extract error text from content (can be string or array of content blocks)
+                    let errorText = "";
+                    if (typeof b.content === "string") {
+                      errorText = b.content;
+                    } else if (Array.isArray(b.content)) {
+                      errorText = b.content
+                        .filter((c: any) => c.type === "text")
+                        .map((c: any) => c.text)
+                        .join(" ");
+                    }
+                    doneDisplay = formatToolErrorStatus(toolDisplay);
+                    if (errorText) {
+                      doneDisplay += `\n<i>${escapeHtml(errorText.slice(0, 150))}</i>`;
+                    }
+                  } else {
+                    doneDisplay = formatToolDoneStatus(toolDisplay);
+                  }
                   statusCallback("tool_done", doneDisplay, undefined, b.tool_use_id).catch((e) =>
                     console.debug("Tool done send failed:", e)
                   );
