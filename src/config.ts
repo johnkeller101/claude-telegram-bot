@@ -145,8 +145,14 @@ export const BLOCKED_PATTERNS = [
   "dd if=",
 ];
 
-// Query timeout (3 minutes)
-export const QUERY_TIMEOUT_MS = 180_000;
+// Query timeout — abort if no streaming events received within this window (default: 3 minutes)
+export const QUERY_TIMEOUT_MS = parseInt(
+  process.env.QUERY_TIMEOUT_MS || "180000",
+  10
+);
+
+// Maximum agentic turns (tool-use rounds) per query (default: 25)
+export const MAX_TURNS = parseInt(process.env.MAX_TURNS || "25", 10);
 
 // ============== Voice Transcription ==============
 

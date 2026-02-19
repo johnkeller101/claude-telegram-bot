@@ -14,7 +14,9 @@ import { readFileSync } from "fs";
 import type { Context } from "grammy";
 import {
   ALLOWED_PATHS,
+  MAX_TURNS,
   MCP_SERVERS,
+  QUERY_TIMEOUT_MS,
   SAFETY_PROMPT,
   SESSION_FILE,
   STREAMING_THROTTLE_MS,
@@ -207,7 +209,7 @@ class ClaudeSession {
 
     // Build SDK V1 options - supports all features
     const options: Options = {
-      model: "claude-sonnet-4-5",
+      model: "claude-sonnet-4-6",
       cwd: WORKING_DIR,
       settingSources: ["user", "project"],
       permissionMode: "bypassPermissions",
@@ -215,6 +217,7 @@ class ClaudeSession {
       systemPrompt: SAFETY_PROMPT,
       mcpServers: MCP_SERVERS,
       maxThinkingTokens: thinkingTokens,
+      maxTurns: MAX_TURNS,
       additionalDirectories: ALLOWED_PATHS,
       resume: this.sessionId || undefined,
     };
@@ -270,8 +273,26 @@ class ClaudeSession {
         },
       });
 
+      // Inactivity timeout — abort if no streaming events within QUERY_TIMEOUT_MS
+      let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+      let timedOut = false;
+      const resetInactivityTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+          timedOut = true;
+          console.warn(
+            `Query timed out — no events received for ${QUERY_TIMEOUT_MS / 1000}s, aborting`
+          );
+          this.abortController?.abort();
+        }, QUERY_TIMEOUT_MS);
+      };
+      resetInactivityTimer();
+
       // Process streaming response
       for await (const event of queryInstance) {
+        // Reset inactivity timer on every event
+        resetInactivityTimer();
+
         // Check for abort
         if (this.stopRequested) {
           console.log("Query aborted by user");
@@ -430,9 +451,13 @@ class ClaudeSession {
 
       if (
         isCleanupError &&
-        (queryCompleted || askUserTriggered || this.stopRequested)
+        (queryCompleted || askUserTriggered || this.stopRequested || timedOut)
       ) {
-        console.warn(`Suppressed post-completion error: ${error}`);
+        if (timedOut) {
+          console.warn(`Query timed out — returning partial response`);
+        } else {
+          console.warn(`Suppressed post-completion error: ${error}`);
+        }
       } else {
         console.error(`Error in query: ${error}`);
         this.lastError = String(error).slice(0, 100);
@@ -440,6 +465,7 @@ class ClaudeSession {
         throw error;
       }
     } finally {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
       this.isQueryRunning = false;
       this.abortController = null;
       this.queryStarted = null;
@@ -459,6 +485,18 @@ class ClaudeSession {
     // Emit final segment
     if (currentSegmentText) {
       await statusCallback("segment_end", currentSegmentText, currentSegmentId);
+    }
+
+    // If timed out, append a notice and send whatever we have
+    if (timedOut) {
+      const partial = responseParts.join("");
+      const notice =
+        "\n\n⏱ Response timed out (a tool call may have stalled). Try rephrasing or asking me to skip web lookups.";
+      if (partial) {
+        await statusCallback("segment_end", notice, currentSegmentId + 1);
+      }
+      await statusCallback("done", "");
+      return partial + notice || notice;
     }
 
     await statusCallback("done", "");
