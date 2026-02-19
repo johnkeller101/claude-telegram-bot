@@ -25,7 +25,7 @@ import {
   THINKING_KEYWORDS,
   WORKING_DIR,
 } from "./config";
-import { formatToolStatus } from "./formatting";
+import { formatToolStatus, formatToolDoneStatus } from "./formatting";
 import { checkPendingAskUserRequests } from "./handlers/streaming";
 import { checkCommandSafety, isPathAllowed } from "./security";
 import type {
@@ -268,6 +268,9 @@ class ClaudeSession {
     let queryCompleted = false;
     let askUserTriggered = false;
 
+    // Track pending tool calls: tool_use_id -> display string
+    const pendingTools = new Map<string, string>();
+
     // Inactivity timeout — abort if no streaming events within QUERY_TIMEOUT_MS
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     let timedOut = false;
@@ -386,12 +389,21 @@ class ClaudeSession {
               this.lastTool = toolDisplay;
               console.log(`Tool: ${toolDisplay}`);
 
+              // Track pending tool for completion updates
+              const toolUseId = (block as { id?: string }).id;
+              if (toolUseId) {
+                pendingTools.set(toolUseId, toolDisplay);
+              }
+
               // Don't show tool status for ask_user - the buttons are self-explanatory
               // Fire-and-forget to avoid blocking event consumption from SDK generator
               if (!toolName.startsWith("mcp__ask-user")) {
                 statusCallback("tool", toolDisplay).catch((e) =>
                   console.debug("Tool status send failed:", e)
                 );
+              } else if (toolUseId) {
+                // Remove ask-user tools from pending since no tool message was sent
+                pendingTools.delete(toolUseId);
               }
 
               // Check for pending ask_user requests after ask-user MCP tool
@@ -449,6 +461,26 @@ class ClaudeSession {
           // Break out of event loop if ask_user was triggered
           if (askUserTriggered) {
             break;
+          }
+        }
+
+        // User message (tool results) — mark tools as completed
+        if (event.type === "user") {
+          const content = (event as { message?: { content?: unknown[] } }).message?.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              const b = block as { type?: string; tool_use_id?: string };
+              if (b.type === "tool_result" && b.tool_use_id) {
+                const toolDisplay = pendingTools.get(b.tool_use_id);
+                if (toolDisplay) {
+                  pendingTools.delete(b.tool_use_id);
+                  const doneDisplay = formatToolDoneStatus(toolDisplay);
+                  statusCallback("tool_done", doneDisplay).catch((e) =>
+                    console.debug("Tool done send failed:", e)
+                  );
+                }
+              }
+            }
           }
         }
 

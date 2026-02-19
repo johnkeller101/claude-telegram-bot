@@ -8,7 +8,7 @@ import type { Context } from "grammy";
 import type { Message } from "grammy/types";
 import { InlineKeyboard } from "grammy";
 import type { StatusCallback } from "../types";
-import { convertMarkdownToHtml, escapeHtml } from "../formatting";
+import { convertMarkdownToHtml, escapeHtml, formatToolDoneStatus } from "../formatting";
 import {
   TELEGRAM_MESSAGE_LIMIT,
   TELEGRAM_SAFE_LIMIT,
@@ -84,7 +84,8 @@ export async function checkPendingAskUserRequests(
  */
 export class StreamingState {
   textMessages = new Map<number, Message>(); // segment_id -> telegram message
-  toolMessages: Message[] = []; // ephemeral tool status messages
+  toolMessages: Message[] = []; // all ephemeral status messages (thinking + tools)
+  pendingToolMsgs: Message[] = []; // tool-only messages awaiting completion
   lastEditTimes = new Map<number, number>(); // segment_id -> last edit time
   lastContent = new Map<number, string>(); // segment_id -> last sent content
 }
@@ -155,6 +156,22 @@ export function createStatusCallback(
       } else if (statusType === "tool") {
         const toolMsg = await ctx.reply(content, { parse_mode: "HTML" });
         state.toolMessages.push(toolMsg);
+        state.pendingToolMsgs.push(toolMsg);
+      } else if (statusType === "tool_done") {
+        // Update the oldest pending tool message (FIFO order)
+        const toolMsg = state.pendingToolMsgs.shift();
+        if (toolMsg) {
+          try {
+            await ctx.api.editMessageText(
+              toolMsg.chat.id,
+              toolMsg.message_id,
+              content,
+              { parse_mode: "HTML" }
+            );
+          } catch (error) {
+            console.debug("Failed to edit tool done message:", error);
+          }
+        }
       } else if (statusType === "text" && segmentId !== undefined) {
         const now = Date.now();
         const lastEdit = state.lastEditTimes.get(segmentId) || 0;

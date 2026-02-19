@@ -307,3 +307,31 @@ export function formatToolStatus(
 
   return `${emoji} ${escapeHtml(toolName)}`;
 }
+
+/**
+ * Convert a tool status string from active ("Fetching") to completed ("Fetched").
+ */
+export function formatToolDoneStatus(toolStatus: string): string {
+  // Replace emoji and verb patterns
+  const replacements: [RegExp, string][] = [
+    [/🌐 Fetching /, "✅ Fetched "],
+    [/🔍 Searching:? /, "✅ Searched "],
+    [/🔎 Searching /, "✅ Searched "],
+    [/📖 Reading /, "✅ Read "],
+    [/📝 Writing /, "✅ Wrote "],
+    [/✏️ Editing /, "✅ Edited "],
+    [/▶️ /, "✅ Ran "],
+    [/🎯 Agent: /, "✅ Agent: "],
+    [/🔧 /, "✅ "],
+    [/👀 Viewing/, "✅ Viewed"],
+    [/🔍 Finding /, "✅ Found "],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(toolStatus)) {
+      return toolStatus.replace(pattern, replacement);
+    }
+  }
+
+  return "✅ " + toolStatus;
+}
