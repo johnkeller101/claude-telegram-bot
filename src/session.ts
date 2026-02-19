@@ -263,6 +263,21 @@ class ClaudeSession {
     let queryCompleted = false;
     let askUserTriggered = false;
 
+    // Inactivity timeout — abort if no streaming events within QUERY_TIMEOUT_MS
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+    let timedOut = false;
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        timedOut = true;
+        console.warn(
+          `Query timed out — no events received for ${QUERY_TIMEOUT_MS / 1000}s, aborting`
+        );
+        this.abortController?.abort();
+      }, QUERY_TIMEOUT_MS);
+    };
+    resetInactivityTimer();
+
     try {
       // Use V1 query() API - supports all options including cwd, mcpServers, etc.
       const queryInstance = query({
@@ -272,21 +287,6 @@ class ClaudeSession {
           abortController: this.abortController,
         },
       });
-
-      // Inactivity timeout — abort if no streaming events within QUERY_TIMEOUT_MS
-      let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-      let timedOut = false;
-      const resetInactivityTimer = () => {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(() => {
-          timedOut = true;
-          console.warn(
-            `Query timed out — no events received for ${QUERY_TIMEOUT_MS / 1000}s, aborting`
-          );
-          this.abortController?.abort();
-        }, QUERY_TIMEOUT_MS);
-      };
-      resetInactivityTimer();
 
       // Process streaming response
       for await (const event of queryInstance) {
