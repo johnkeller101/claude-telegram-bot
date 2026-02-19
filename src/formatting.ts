@@ -25,6 +25,7 @@ export function convertMarkdownToHtml(text: string): string {
   // Store code blocks temporarily to avoid processing their contents
   const codeBlocks: string[] = [];
   const inlineCodes: string[] = [];
+  const tableBlocks: string[] = [];
 
   // Save code blocks first (```code```)
   text = text.replace(/```(?:\w+)?\n?([\s\S]*?)```/g, (_, code) => {
@@ -37,6 +38,9 @@ export function convertMarkdownToHtml(text: string): string {
     inlineCodes.push(code);
     return `\x00INLINECODE${inlineCodes.length - 1}\x00`;
   });
+
+  // Convert markdown tables to pre-escaped <pre> placeholders
+  text = convertMarkdownTables(text, tableBlocks);
 
   // Escape HTML entities in the remaining text
   text = escapeHtml(text);
@@ -83,10 +87,100 @@ export function convertMarkdownToHtml(text: string): string {
     );
   }
 
+  // Restore table blocks (already escaped inside convertMarkdownTables)
+  for (let i = 0; i < tableBlocks.length; i++) {
+    text = text.replace(`\x00TABLE${i}\x00`, tableBlocks[i]!);
+  }
+
   // Collapse multiple newlines
   text = text.replace(/\n{3,}/g, "\n\n");
 
   return text;
+}
+
+/**
+ * Detect markdown tables and convert to monospace <pre> blocks.
+ * Stores the pre-escaped HTML in tableBlocks and returns placeholders.
+ */
+function convertMarkdownTables(text: string, tableBlocks: string[]): string {
+  const lines = text.split("\n");
+  const result: string[] = [];
+  let tableLines: string[] = [];
+
+  const isTableRow = (line: string) => {
+    const trimmed = line.trim();
+    return trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.includes("|", 1);
+  };
+
+  const isSeparator = (line: string) => /^\|[\s:|-]+\|$/.test(line.trim());
+
+  const flushTable = () => {
+    if (tableLines.length < 2) {
+      result.push(...tableLines);
+      tableLines = [];
+      return;
+    }
+
+    // Parse cells from each row
+    const rows = tableLines
+      .filter((l) => !isSeparator(l))
+      .map((line) =>
+        line
+          .trim()
+          .replace(/^\||\|$/g, "")
+          .split("|")
+          .map((cell) => cell.trim())
+      );
+
+    if (rows.length === 0) {
+      result.push(...tableLines);
+      tableLines = [];
+      return;
+    }
+
+    // Calculate max width per column
+    const colCount = Math.max(...rows.map((r) => r.length));
+    const colWidths: number[] = Array(colCount).fill(0);
+    for (const row of rows) {
+      for (let i = 0; i < colCount; i++) {
+        colWidths[i] = Math.max(colWidths[i]!, (row[i] || "").length);
+      }
+    }
+
+    // Build padded rows with box-drawing separator
+    const formatted: string[] = [];
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r]!;
+      const paddedCells = colWidths.map((w, i) => (row[i] || "").padEnd(w));
+      formatted.push(paddedCells.join(" │ "));
+      if (r === 0) {
+        formatted.push(colWidths.map((w) => "─".repeat(w)).join("─┼─"));
+      }
+    }
+
+    // Escape HTML and store as <pre> block
+    const tableHtml = `<pre>${escapeHtml(formatted.join("\n"))}</pre>`;
+    const idx = tableBlocks.length;
+    tableBlocks.push(tableHtml);
+    result.push(`\x00TABLE${idx}\x00`);
+    tableLines = [];
+  };
+
+  for (const line of lines) {
+    if (isTableRow(line)) {
+      tableLines.push(line);
+    } else {
+      if (tableLines.length > 0) {
+        flushTable();
+      }
+      result.push(line);
+    }
+  }
+  if (tableLines.length > 0) {
+    flushTable();
+  }
+
+  return result.join("\n");
 }
 
 /**
