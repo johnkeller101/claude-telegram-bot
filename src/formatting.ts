@@ -380,19 +380,25 @@ export function formatToolStatus(
       }
       action = action.replace(/_/g, " ");
 
-      // Try to get meaningful summary
+      // Try to get meaningful summary from common MCP input fields
       const summary =
+        toolInput.name ||
         toolInput.title ||
         toolInput.query ||
+        toolInput.description ||
         toolInput.content ||
         toolInput.text ||
         toolInput.id ||
         "";
 
       if (summary) {
-        return `🔧 ${server} ${action}: ${escapeHtml(
-          truncate(String(summary), 40)
-        )}`;
+        let detail = escapeHtml(truncate(String(summary), 40));
+        // Append date for calendar-related tools
+        const date = toolInput.start_date || toolInput.date;
+        if (date) {
+          detail += ` (${escapeHtml(String(date).slice(0, 10))})`;
+        }
+        return `🔧 ${server} ${action}: ${detail}`;
       }
       return `🔧 ${server}: ${action}`;
     }
