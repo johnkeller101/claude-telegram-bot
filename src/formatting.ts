@@ -398,9 +398,13 @@ export function formatToolStatus(
         if (date) {
           detail += ` (${escapeHtml(String(date).slice(0, 10))})`;
         }
-        return `🔧 ${server} ${action}: ${detail}`;
+        // Capitalize first letter of action
+        const label = action.charAt(0).toUpperCase() + action.slice(1);
+        return `🔧 ${label}: ${detail}`;
       }
-      return `🔧 ${server}: ${action}`;
+      // Capitalize first letter of action
+      const label = action.charAt(0).toUpperCase() + action.slice(1);
+      return `🔧 ${label}`;
     }
     return `🔧 ${escapeHtml(toolName)}`;
   }
