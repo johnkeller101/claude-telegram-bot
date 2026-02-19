@@ -293,6 +293,14 @@ class ClaudeSession {
         // Reset inactivity timer on every event
         resetInactivityTimer();
 
+        // Debug: log every event type to diagnose streaming gaps
+        if (event.type === "assistant") {
+          const blockTypes = event.message.content.map((b: { type: string }) => b.type).join(", ");
+          console.log(`EVENT: assistant [${blockTypes}]`);
+        } else {
+          console.log(`EVENT: ${event.type}`);
+        }
+
         // Check for abort
         if (this.stopRequested) {
           console.log("Query aborted by user");
