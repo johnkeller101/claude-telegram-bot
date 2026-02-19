@@ -322,7 +322,9 @@ class ClaudeSession {
               const thinkingText = block.thinking;
               if (thinkingText) {
                 console.log(`THINKING BLOCK: ${thinkingText.slice(0, 100)}...`);
-                await statusCallback("thinking", thinkingText);
+                statusCallback("thinking", thinkingText).catch((e) =>
+                  console.debug("Thinking status send failed:", e)
+                );
               }
             }
 
@@ -362,12 +364,12 @@ class ClaudeSession {
                 }
               }
 
-              // Segment ends when tool starts
+              // Segment ends when tool starts — fire-and-forget
               if (currentSegmentText) {
-                await statusCallback(
-                  "segment_end",
-                  currentSegmentText,
-                  currentSegmentId
+                const segText = currentSegmentText;
+                const segId = currentSegmentId;
+                statusCallback("segment_end", segText, segId).catch((e) =>
+                  console.debug("Segment end send failed:", e)
                 );
                 currentSegmentId++;
                 currentSegmentText = "";
@@ -380,8 +382,11 @@ class ClaudeSession {
               console.log(`Tool: ${toolDisplay}`);
 
               // Don't show tool status for ask_user - the buttons are self-explanatory
+              // Fire-and-forget to avoid blocking event consumption from SDK generator
               if (!toolName.startsWith("mcp__ask-user")) {
-                await statusCallback("tool", toolDisplay);
+                statusCallback("tool", toolDisplay).catch((e) =>
+                  console.debug("Tool status send failed:", e)
+                );
               }
 
               // Check for pending ask_user requests after ask-user MCP tool
