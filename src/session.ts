@@ -398,7 +398,7 @@ class ClaudeSession {
               // Don't show tool status for ask_user - the buttons are self-explanatory
               // Fire-and-forget to avoid blocking event consumption from SDK generator
               if (!toolName.startsWith("mcp__ask-user")) {
-                statusCallback("tool", toolDisplay).catch((e) =>
+                statusCallback("tool", toolDisplay, undefined, toolUseId).catch((e) =>
                   console.debug("Tool status send failed:", e)
                 );
               } else if (toolUseId) {
@@ -475,7 +475,7 @@ class ClaudeSession {
                 if (toolDisplay) {
                   pendingTools.delete(b.tool_use_id);
                   const doneDisplay = formatToolDoneStatus(toolDisplay);
-                  statusCallback("tool_done", doneDisplay).catch((e) =>
+                  statusCallback("tool_done", doneDisplay, undefined, b.tool_use_id).catch((e) =>
                     console.debug("Tool done send failed:", e)
                   );
                 }

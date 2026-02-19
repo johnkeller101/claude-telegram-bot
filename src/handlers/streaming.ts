@@ -8,7 +8,7 @@ import type { Context } from "grammy";
 import type { Message } from "grammy/types";
 import { InlineKeyboard } from "grammy";
 import type { StatusCallback } from "../types";
-import { convertMarkdownToHtml, escapeHtml, formatToolDoneStatus } from "../formatting";
+import { convertMarkdownToHtml, escapeHtml } from "../formatting";
 import {
   TELEGRAM_MESSAGE_LIMIT,
   TELEGRAM_SAFE_LIMIT,
@@ -85,7 +85,7 @@ export async function checkPendingAskUserRequests(
 export class StreamingState {
   textMessages = new Map<number, Message>(); // segment_id -> telegram message
   toolMessages: Message[] = []; // all ephemeral status messages (thinking + tools)
-  pendingToolMsgs: Message[] = []; // tool-only messages awaiting completion
+  toolMsgById = new Map<string, Message>(); // tool_use_id -> telegram message
   lastEditTimes = new Map<number, number>(); // segment_id -> last edit time
   lastContent = new Map<number, string>(); // segment_id -> last sent content
 }
@@ -142,7 +142,7 @@ export function createStatusCallback(
   ctx: Context,
   state: StreamingState
 ): StatusCallback {
-  return async (statusType: string, content: string, segmentId?: number) => {
+  return async (statusType: string, content: string, segmentId?: number, toolUseId?: string) => {
     try {
       if (statusType === "thinking") {
         // Show thinking inline, compact (first 500 chars)
@@ -156,11 +156,14 @@ export function createStatusCallback(
       } else if (statusType === "tool") {
         const toolMsg = await ctx.reply(content, { parse_mode: "HTML" });
         state.toolMessages.push(toolMsg);
-        state.pendingToolMsgs.push(toolMsg);
+        if (toolUseId) {
+          state.toolMsgById.set(toolUseId, toolMsg);
+        }
       } else if (statusType === "tool_done") {
-        // Update the oldest pending tool message (FIFO order)
-        const toolMsg = state.pendingToolMsgs.shift();
+        // Find the specific tool message by tool_use_id
+        const toolMsg = toolUseId ? state.toolMsgById.get(toolUseId) : undefined;
         if (toolMsg) {
+          state.toolMsgById.delete(toolUseId!);
           try {
             await ctx.api.editMessageText(
               toolMsg.chat.id,
