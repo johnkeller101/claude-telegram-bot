@@ -411,6 +411,15 @@ class ClaudeSession {
               }
             }
 
+            // Log unhandled block types
+            if (
+              block.type !== "thinking" &&
+              block.type !== "tool_use" &&
+              block.type !== "text"
+            ) {
+              console.log(`UNHANDLED BLOCK TYPE: ${block.type}`);
+            }
+
             // Text content
             if (block.type === "text") {
               responseParts.push(block.text);
