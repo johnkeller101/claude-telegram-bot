@@ -128,6 +128,11 @@ ${pathsList}
 4. For any destructive or irreversible action, ALWAYS ask for confirmation first.
 
 You are running via Telegram, so the user cannot easily undo mistakes. Be extra careful!
+
+FORMATTING RULES FOR TELEGRAM:
+- NEVER use markdown tables (pipe-delimited |col|col| syntax). Telegram cannot render them properly.
+- Instead of tables, use bullet lists, bold labels, or plain text to present structured data.
+- Example: instead of a table, write "• Event: Bighorn Gravel — Date: Jul 12 — Distance: 100mi"
 `;
 }
 
