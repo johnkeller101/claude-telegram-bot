@@ -25,7 +25,7 @@ import {
   THINKING_KEYWORDS,
   WORKING_DIR,
 } from "./config";
-import { escapeHtml, formatToolStatus, formatToolDoneStatus, formatToolErrorStatus } from "./formatting";
+import { escapeHtml, formatToolStatus, formatToolDoneStatus, formatToolErrorStatus, summarizeToolOutput, extractToolResultText, looksLikeError } from "./formatting";
 import { checkPendingAskUserRequests } from "./handlers/streaming";
 import { checkCommandSafety, isPathAllowed } from "./security";
 import type {
@@ -474,24 +474,21 @@ class ClaudeSession {
                 const toolDisplay = pendingTools.get(b.tool_use_id);
                 if (toolDisplay) {
                   pendingTools.delete(b.tool_use_id);
+                  // Detect errors even when is_error is not set (some MCP servers don't set it)
+                  const resultText = extractToolResultText(b.content);
+
+                  // Log MCP tool responses for debugging
+                  if (toolDisplay.includes("🔧")) {
+                    console.log(`MCP RESPONSE (${toolDisplay}): ${resultText}`);
+                  }
+                  const isError = b.is_error || looksLikeError(resultText);
                   let doneDisplay: string;
-                  if (b.is_error) {
-                    // Extract error text from content (can be string or array of content blocks)
-                    let errorText = "";
-                    if (typeof b.content === "string") {
-                      errorText = b.content;
-                    } else if (Array.isArray(b.content)) {
-                      errorText = b.content
-                        .filter((c: any) => c.type === "text")
-                        .map((c: any) => c.text)
-                        .join(" ");
-                    }
+                  if (isError) {
                     doneDisplay = formatToolErrorStatus(toolDisplay);
-                    if (errorText) {
-                      doneDisplay += `\n<i>${escapeHtml(errorText.slice(0, 150))}</i>`;
-                    }
+                    doneDisplay += summarizeToolOutput(b.content);
                   } else {
                     doneDisplay = formatToolDoneStatus(toolDisplay);
+                    doneDisplay += summarizeToolOutput(b.content);
                   }
                   statusCallback("tool_done", doneDisplay, undefined, b.tool_use_id).catch((e) =>
                     console.debug("Tool done send failed:", e)

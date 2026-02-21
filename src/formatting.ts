@@ -440,6 +440,58 @@ export function formatToolErrorStatus(toolStatus: string): string {
 }
 
 /**
+ * Extract raw text from tool_result content (string or array of content blocks).
+ */
+export function extractToolResultText(content: unknown): string {
+  let raw = "";
+  if (typeof content === "string") {
+    raw = content;
+  } else if (Array.isArray(content)) {
+    raw = content
+      .filter((c: any) => c.type === "text")
+      .map((c: any) => c.text)
+      .join(" ");
+  }
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Check if tool output text looks like an error even when is_error is false.
+ * Some MCP servers return errors as normal results without setting the error flag.
+ */
+export function looksLikeError(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const errorPatterns = [
+    /^(unexpected )?error:/i,
+    /^traceback \(most recent/i,
+    /^exception:/i,
+    /^failed:/i,
+    /\berror\b.*\bunconverted data\b/i,
+    /\bstatus[_ ]?code[: ]+[45]\d{2}\b/i,
+    /\bHTTP [45]\d{2}\b/i,
+  ];
+  return errorPatterns.some((p) => p.test(text));
+}
+
+/**
+ * Summarize tool output for display in the completion message.
+ * Extracts text from tool_result content, truncates, and formats as italic.
+ *
+ * Returns empty string if nothing useful to show.
+ */
+export function summarizeToolOutput(content: unknown, maxLen = 150): string {
+  const raw = extractToolResultText(content);
+
+  if (!raw || raw.length < 3) return "";
+
+  // Truncate
+  const truncated = raw.length > maxLen ? raw.slice(0, maxLen) + "…" : raw;
+
+  return `\n<i>${escapeHtml(truncated)}</i>`;
+}
+
+/**
  * Convert a tool status string from active ("Fetching") to completed ("Fetched").
  */
 export function formatToolDoneStatus(toolStatus: string): string {
